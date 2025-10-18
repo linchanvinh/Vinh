@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>汉语拼音拼写闯关游戏</title>
+<style>
+  :root{
+    --card-bg: rgba(255,255,255,0.95);
+    --glass: rgba(255,255,255,0.06);
+    --accent-from: #4facfe;
+    --accent-to: #6f4bff;
+    --shadow: 0 10px 25px rgba(14,22,40,0.18);
+  }
+  *{box-sizing:border-box;font-family: "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft Yahei", "Noto Sans SC", Arial, sans-serif}
+  html,body{height:100%;margin:0;background:linear-gradient(135deg,var(--accent-from),var(--accent-to));color:#0b1020}
+  .container{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:28px;
+  }
+  .card{
+    width:100%;
+    max-width:980px;
+    background:var(--card-bg);
+    border-radius:14px;
+    box-shadow:var(--shadow);
+    padding:18px;
+    backdrop-filter: blur(6px);
+  }
+  header{display:flex;flex-direction:column;gap:8px;padding:8px 12px 14px;border-bottom:1px solid rgba(11,16,32,0.06)}
+  header h1{margin:0;font-size:20px;color:#071133}
+  .desc{color:#2b3350;font-size:13px}
+  .top-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  .stat{
+    background:linear-gradient(180deg,rgba(255,255,255,0.8),rgba(255,255,255,0.6));
+    border-radius:10px;padding:8px 12px;font-weight:600;color:#062048;box-shadow:0 4px 10px rgba(11,16,32,0.06)
+  }
+
+  main{display:flex;gap:18px;padding:18px 12px;align-items:flex-start;flex-wrap:wrap}
+  .left{
+    flex:1 1 300px;
+    min-width:260px;
+  }
+  .right{
+    flex:1 1 420px;
+    min-width:280px;
+  }
+
+  /* 汉字卡 */
+  .char-card{
+    background:var(--glass);
+    border-radius:12px;padding:18px;text-align:center;
+    box-shadow:0 6px 18px rgba(11,16,32,0.06);
+  }
+  .char{
+    font-size:96px;line-height:1;margin:6px 0 10px;color:#071133;font-weight:700;
+  }
+  .controls{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  button{
+    cursor:pointer;border:0;padding:10px 14px;border-radius:10px;background:#fff;font-weight:700;
+    box-shadow:0 6px 18px rgba(11,16,32,0.06);
+  }
+  .play-btn{display:inline-flex;align-items:center;gap:8px}
+  .muted{opacity:0.7;font-weight:600}
+
+  /* 拼音 区 */
+  .slot-card{background:linear-gradient(180deg,#ffffff,#f7f9ff);border-radius:12px;padding:12px}
+  .slots{display:flex;gap:10px;justify-content:center;align-items:center;padding:10px;flex-wrap:wrap}
+  .slot{
+    min-width:90px;height:56px;border-radius:10px;border:2px dashed rgba(7,17,51,0.08);
+    display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#071133;background:rgba(255,255,255,0.7);
+  }
+  .slot.small{min-width:60px;height:46px;font-size:16px}
+  .slot .btn-remove{margin-left:8px;background:transparent;border:0;font-size:14px;color:#9aa3c8;cursor:pointer}
+
+  /* 组件区 */
+  .components{
+    margin-top:14px;padding:8px;display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-start;
+  }
+  .chip{
+    user-select:none;
+    padding:10px 12px;border-radius:10px;background:#fff;font-weight:800;box-shadow:0 6px 16px rgba(11,16,32,0.08);
+    cursor:grab;transition:transform .12s, box-shadow .12s;
+    display:inline-flex;align-items:center;justify-content:center,min-width:48px;
+  }
+  .chip:active{cursor:grabbing}
+  .chip:hover{transform:translateY(-6px);box-shadow:0 18px 30px rgba(11,16,32,0.14)}
+  .chip[data-type="tone"]{background:linear-gradient(180deg,#fff3,#eef2ff)}
+  .chip[data-type="initial"]{background:linear-gradient(180deg,#fff,#f0fcff)}
+  .chip[data-type="final"]{background:linear-gradient(180deg,#fff,#fff7f5)}
+  .chip.empty{opacity:0.7}
+
+  .footer-area{padding:12px;border-top:1px solid rgba(11,16,32,0.05);display:flex;flex-direction:column;gap:10px}
+  .feedback{min-height:28px;font-weight:700}
+  .feedback.ok{color:green}
+  .feedback.err{color:#c62828}
+
+  .page-footer{font-size:12px;color:#3b4262;opacity:0.9}
+
+  /* responsive */
+  @media (max-width:760px){
+    .char{font-size:72px}
+    .slots{gap:6px}
+    .slot{min-width:72px;height:48px}
+  }
+
+  /* helper */
+  .small-muted{font-size:13px;color:#3b4262;opacity:0.8}
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="card" role="application" aria-label="汉语拼音拼写闯关游戏">
+      <header>
+        <h1>汉语拼音拼写闯关游戏</h1>
+        <div class="desc">依据 HSK1 词库示例。听发音 → 拖拽声母/韵母/声调到槽位 → 检查答案。答对 +10 分，累计 50 分升一级。使用 Web Speech API（zh-CN，rate=0.9）播放汉字。</div>
+        <div class="top-row">
+          <div class="stat">等级：<span id="level">1</span></div>
+          <div class="stat">得分：<span id="score">0</span></div>
+          <div class="stat">题号：<span id="qIndex">0</span></div>
+        </div>
+      </header>
+
+      <main>
+        <!-- 左：汉字与控制 -->
+        <section class="left">
+          <div class="char-card">
+            <div class="char" id="charTarget">你</div>
+            <div class="controls">
+              <button id="playBtn" class="play-btn" title="播放发音">🔊 播放发音</button>
+              <button id="checkBtn" title="检查答案">✅ 检查答案</button>
+              <button id="nextBtn" title="下一题">➡️ 下一题</button>
+            </div>
+            <div style="margin-top:10px" class="small-muted">提示：可拖拽拼音组件到对应槽位，拖完再点“检查答案”。</div>
+          </div>
+
+          <div style="margin-top:12px" class="slot-card">
+            <div style="text-align:center;font-weight:800;margin-bottom:8px">拼音拼写区</div>
+            <div class="slots" aria-live="polite">
+              <div class="slot small" id="slot-initial" data-accept="initial">声母<br><small class="small-muted">(拖入)</small></div>
+              <div class="slot" id="slot-final" data-accept="final">韵母<br><small class="small-muted">(拖入)</small></div>
+              <div class="slot small" id="slot-tone" data-accept="tone">声调<br><small class="small-muted">(拖入)</small></div>
+            </div>
+            <div style="text-align:center;margin-top:6px"><button id="clearSlots" title="清空槽位">清空槽位</button></div>
+          </div>
+        </section>
+
+        <!-- 右：组件区与说明 -->
+        <aside class="right">
+          <div class="slot-card">
+            <div style="font-weight:800;margin-bottom:8px">拼音组件（声母 / 韵母 / 声调）</div>
+            <div id="components" class="components" aria-label="拼音组件区">
+              <!-- chips injected here -->
+            </div>
+            <div style="margin-top:8px;font-size:13px;color:#334;background:#f6f8ff;padding:8px;border-radius:8px">
+              鼠标/触摸拖拽组件到相应槽位。声调采用数字 1-4，5 表示轻声（无符号）。
+            </div>
+          </div>
+
+          <div style="margin-top:12px" class="slot-card">
+            <div style="font-weight:800;margin-bottom:8px">结果提示区</div>
+            <div id="feedback" class="feedback">等待你的回答…</div>
+            <div style="margin-top:8px" class="small-muted">正确拼音将保留声调符号（例如：nǐ）。</div>
+          </div>
+        </aside>
+      </main>
+
+      <div class="footer-area">
+        <div class="page-footer">说明：使用 HSK1 词库示例（不完全）。发音通过浏览器的 Web Speech API（zh-CN，rate=0.9）。页面为单文件 HTML，可双击打开运行。</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/*
+  汉语拼音拼写闯关游戏
+  - 单音节 HSK1 示例库（至少 15 个）
+  - 每题随机抽取一个单音节汉字
+  - 拼音由 声母 + 韵母 + 声调(1-5) 组成（5 表示轻声/无符号）
+  - 用户拖拽对应组件到槽位，点击检查答案，保留声调比较
+  - Web Speech API 用于发音（zh-CN，rate=0.9）
+  - 原生 JS 实现拖放
+*/
+
+/* ---------- HSK1 示例词库（单音节）-----------
+ fields:
+   character: 汉字
+   pinyin: 标准带声调的拼音（带声调符号，轻声用无符号，例如 "le"）
+   initial: 声母 (可为空字符串，表示无声母)
+   final: 韵母（包含 ü 等）
+   tone: 声调数字 1-5（5 表示轻声/中性）
+   components: （示例）提供若干干扰项（静态），加载时会随机打散展示
+------------------------------------------------*/
+const HSK1 = [
+  { character:"我", pinyin:"wǒ", initial:"w", final:"o", tone:3,
+    components:["w","o","3","n","ai","1","zh","4"] },
+  { character:"你", pinyin:"nǐ", initial:"n", final:"i", tone:3,
+    components:["n","i","3","l","u","2","zh","4"] },
+  { character:"他", pinyin:"tā", initial:"t", final:"a", tone:1,
+    components:["t","a","1","d","e","3","sh","4"] },
+  { character:"她", pinyin:"tā", initial:"t", final:"a", tone:1,
+    components:["t","a","1","m","o","2","w","3"] },
+  { character:"是", pinyin:"shì", initial:"sh", final:"i", tone:4,
+    components:["sh","i","4","s","u","1","2","5"] },
+  { character:"不", pinyin:"bù", initial:"b", final:"u", tone:4,
+    components:["b","u","4","p","o","2","3","5"] },
+  { character:"了", pinyin:"le", initial:"l", final:"e", tone:5,
+    components:["l","e","5","r","ai","4","1","3"] },
+  { character:"在", pinyin:"zài", initial:"z", final:"ai", tone:4,
+    components:["z","ai","4","zh","u","2","3","1"] },
+  { character:"有", pinyin:"yǒu", initial:"y", final:"ou", tone:3,
+    components:["y","ou","3","w","o","1","2","5"] },
+  { character:"好", pinyin:"hǎo", initial:"h", final:"ao", tone:3,
+    components:["h","ao","3","g","e","4","1","zh"] },
+  { character:"吗", pinyin:"ma", initial:"m", final:"a", tone:5,
+    components:["m","a","5","n","i","2","3","4"] },
+  { character:"的", pinyin:"de", initial:"d", final:"e", tone:5,
+    components:["d","e","5","t","ai","2","3","4"] },
+  { character:"这", pinyin:"zhè", initial:"zh", final:"e", tone:4,
+    components:["zh","e","4","z","ai","1","2","5"] },
+  { character:"那", pinyin:"nà", initial:"n", final:"a", tone:4,
+    components:["n","a","4","l","e","5","1","3"] },
+  { character:"来", pinyin:"lái", initial:"l", final:"ai", tone:2,
+    components:["l","ai","2","r","u","4","1","5"] },
+  { character:"去", pinyin:"qù", initial:"q", final:"u", tone:4,
+    components:["q","u","4","k","ai","1","2","5"] },
+  { character:"看", pinyin:"kàn", initial:"k", final:"an", tone:4,
+    components:["k","an","4","h","ao","3","1","2"] },
+  { character:"吃", pinyin:"chī", initial:"ch", final:"i", tone:1,
+    components:["ch","i","1","c","u","4","2","3"] },
+  { character:"喝", pinyin:"hē", initial:"h", final:"e", tone:1,
+    components:["h","e","1","g","ai","4","2","5"] }
+];
+
+// 常用声母/韵母/声调备用（用于生成更多干扰项时，可以扩充）
+const ALL_INITIALS = ["b","p","m","f","d","t","n","l","g","k","h","j","q","x","zh","ch","sh","r","z","c","s","y","w",""];
+const ALL_FINALS = ["a","o","e","i","u","ai","ei","ao","ou","an","en","ang","eng","ong","ao","ai","iao","iu","ui","ie","er","ao","ou","ong","v","ü"];
+const ALL_TONES = ["1","2","3","4","5"];
+
+/* ---------- 拼音声调符号映射 ----------
+   对元音 a e i o u ü 在 1-4 声调下的带符号形式
+   1: macron  (ā ē ī ō ū ǖ)
+   2: acute   (á é í ó ú ǘ)
+   3: caron   (ǎ ě ǐ ǒ ǔ ǚ)
+   4: grave   (à è ì ò ù ǜ)
+   5: neutral (no mark)
+------------------------------------------------*/
+const TONE_MARKS = {
+  "a": {"1":"ā","2":"á","3":"ǎ","4":"à","5":"a"},
+  "e": {"1":"ē","2":"é","3":"ě","4":"è","5":"e"},
+  "i": {"1":"ī","2":"í","3":"ǐ","4":"ì","5":"i"},
+  "o": {"1":"ō","2":"ó","3":"ǒ","4":"ò","5":"o"},
+  "u": {"1":"ū","2":"ú","3":"ǔ","4":"ù","5":"u"},
+  "ü": {"1":"ǖ","2":"ǘ","3":"ǚ","4":"ǜ","5":"ü"}
+};
+
+/* ---------- 工具函数：将（initial, final, toneNumber）转为带声调拼音  ----------
+   - final: 如 "ai", "ou", "ü", "an" 等
+   - tone: "1"-"5" 字符
+   - 返回带符号拼音字符串（例如 n + i + 3 => "nǐ"）
+   规则（简化但覆盖常见情况）：
+     1) 若韵母中包含 'a' 或 'e'，优先在该字母上加声调符号（a > o > e）
+     2) 若包含 "ou"，标记 o
+     3) 若为复元音（iu, ui 等），标记第二个元音（iu -> u，ui -> i）
+     4) 否则标记最后一个元音
+---------------------------------------------------------------*/
+function applyTone(initial, final, tone){
+  // tone is "1"-"5"
+  if (!final) final = "";
+  if (!initial) initial = "";
+  const f = final.replace(/v/g,'ü'); // if any v used to represent ü
+  const t = tone || "5";
+  if (t === "5") { // neutral: no diacritic
+    return initial + f;
+  }
+  // find vowel to mark
+  const vf = f; // e.g., "ai", "ou", "ü", "iao"
+  // helper to find markable index
+  let markChar = null;
+  // rule a > o > e
+  if (vf.includes("a")) markChar = "a";
+  else if (vf.includes("o")) markChar = "o";
+  else if (vf.includes("e")) markChar = "e";
+  else if (vf.includes("ou")) markChar = "o";
+  else {
+    // for special pairs iu, ui
+    if (vf.includes("iu")) markChar = "u";
+    else if (vf.includes("ui")) markChar = "i";
+    else {
+      // default: mark last vowel character among [a e i o u ü]
+      for (let i=vf.length-1;i>=0;i--){
+        const ch = vf[i];
+        if ("aeiouüv".includes(ch)) { // v treated as ü
+          markChar = ch === 'v' ? 'ü' : ch;
+          break;
+        }
+      }
+    }
+  }
+  if (!markChar) {
+    // fallback: just return concatenation
+    return initial + f;
+  }
+  // build marked final by replacing first occurrence of markChar in appropriate place.
+  // But we should replace the correct occurrence: if multiple, replace the one according to rules.
+  // Simple approach: find index of char in vf to replace (search from left):
+  let idx = -1;
+  if (markChar === 'ü'){
+    idx = vf.indexOf('ü');
+    if (idx === -1) idx = vf.indexOf('v'); // maybe v used
+  } else {
+    idx = vf.indexOf(markChar);
+  }
+  if (idx === -1) {
+    // fallback: mark last vowel
+    for (let i=vf.length-1;i>=0;i--){
+      const ch = vf[i];
+      if ("aeiouüv".includes(ch)) { idx = i; break; }
+    }
+    if (idx === -1) return initial + f;
+  }
+  // get original char to map (consider v -> ü)
+  const origChar = (vf[idx] === 'v') ? 'ü' : vf[idx];
+  const marked = TONE_MARKS[origChar] ? TONE_MARKS[origChar][t] : vf[idx];
+  // reconstruct final
+  const finalMarked = vf.slice(0,idx) + marked + vf.slice(idx+1);
+  return initial + finalMarked;
+}
+
+/* ---------- DOM 元素 ----------
+*/
+const charTarget = document.getElementById('charTarget');
+const playBtn = document.getElementById('playBtn');
+const componentsWrap = document.getElementById('components');
+const slotInitial = document.getElementById('slot-initial');
+const slotFinal = document.getElementById('slot-final');
+const slotTone = document.getElementById('slot-tone');
+const checkBtn = document.getElementById('checkBtn');
+const nextBtn = document.getElementById('nextBtn');
+const clearBtn = document.getElementById('clearSlots');
+const feedbackEl = document.getElementById('feedback');
+const scoreEl = document.getElementById('score');
+const levelEl = document.getElementById('level');
+const qIndexEl = document.getElementById('qIndex');
+
+/* ---------- 游戏状态 ----------
+*/
+let current = null; // 当前题对象
+let score = 0;
+let level = 1;
+let qIndex = 0;
+let nextLevelThreshold = 50;
+
+/* 槽位存储已放置的值（字符串） */
+let slotState = { initial: null, final: null, tone: null };
+
+/* ---------- 初始化：载入第一题 ---------- */
+function startNewGame(){
+  score = 0; level = 1; nextLevelThreshold = 50; qIndex = 0;
+  updateUI();
+  nextQuestion();
+}
+
+/* 随机抽题 */
+function pickRandomWord(){
+  // 随机单音节
+  const idx = Math.floor(Math.random()*HSK1.length);
+  return JSON.parse(JSON.stringify(HSK1[idx])); // clone
+}
+
+/* 加载题目、生成组件展示 */
+function nextQuestion(){
+  clearSlots();
+  current = pickRandomWord();
+  qIndex++;
+  qIndexEl.textContent = qIndex;
+  // show character
+  charTarget.textContent = current.character;
+  feedbackEl.textContent = "听发音或开始拖拽拼音组件。";
+  feedbackEl.className = "feedback";
+  // prepare components list: use current.components plus ensure correct initial/final/tone present
+  let comps = Array.from(new Set(current.components.slice())); // shallow copy unique
+  // ensure essential ones included
+  if (!comps.includes(current.initial)) comps.push(current.initial);
+  if (!comps.includes(current.final)) comps.push(current.final);
+  if (!comps.includes(String(current.tone))) comps.push(String(current.tone));
+  // add some random distractors if too few
+  while (comps.length < 9){
+    const pick = (Math.random()<0.5) ? ALL_INITIALS[Math.floor(Math.random()*ALL_INITIALS.length)] : ALL_FINALS[Math.floor(Math.random()*ALL_FINALS.length)];
+    if (!comps.includes(pick)) comps.push(pick);
+  }
+  // shuffle
+  comps = comps.sort(()=>Math.random()-0.5);
+  // render components
+  componentsWrap.innerHTML = "";
+  comps.forEach(c=>{
+    if (c === "") return; // skip empty placeholders
+    const chip = document.createElement('div');
+    chip.className = "chip";
+    chip.setAttribute('draggable','true');
+    // determine type
+    let type = "initial";
+    if (ALL_TONES.includes(String(c))) type = "tone";
+    else if (ALL_FINALS.includes(c) || c.includes("ai") || c.includes("ou") || c.length>1 && /[aeiouüv]/.test(c)) type = "final";
+    else if (c.length === 1 && /[aeiouüv]/.test(c)) type = "final";
+    else type = "initial";
+    chip.dataset.type = type;
+    chip.dataset.value = c;
+    chip.textContent = c;
+    // small style for empty-like
+    if (c === "∅" || c === "-" || c === "") chip.classList.add("empty");
+    // drag handlers
+    chip.addEventListener('dragstart', e=>{
+      e.dataTransfer.setData('text/plain', JSON.stringify({type: chip.dataset.type, value: chip.dataset.value}));
+      // for touch fallback: set dragging class
+      chip.classList.add('dragging');
+    });
+    chip.addEventListener('dragend', e=>{
+      chip.classList.remove('dragging');
+    });
+    // allow clicking the chip to auto-place into an empty corresponding slot (useful for mobile / accessibility)
+    chip.addEventListener('click', ()=>{
+      // try place into first empty slot matching type
+      if (chip.dataset.type === 'initial' && !slotState.initial) {
+        placeIntoSlot('initial', chip.dataset.value);
+      } else if (chip.dataset.type === 'final' && !slotState.final) {
+        placeIntoSlot('final', chip.dataset.value);
+      } else if (chip.dataset.type === 'tone' && !slotState.tone) {
+        placeIntoSlot('tone', chip.dataset.value);
+      } else {
+        // swap if slot occupied: replace
+        if (chip.dataset.type === 'initial') placeIntoSlot('initial', chip.dataset.value);
+        if (chip.dataset.type === 'final') placeIntoSlot('final', chip.dataset.value);
+        if (chip.dataset.type === 'tone') placeIntoSlot('tone', chip.dataset.value);
+      }
+    });
+    componentsWrap.appendChild(chip);
+  });
+}
+
+/* 槽位拖放事件 */
+function allowDrop(ev){ ev.preventDefault(); }
+[slotInitial, slotFinal, slotTone].forEach(slot=>{
+  slot.addEventListener('dragover', allowDrop);
+  slot.addEventListener('drop', ev=>{
+    ev.preventDefault();
+    try{
+      const data = JSON.parse(ev.dataTransfer.getData('text/plain'));
+      const accept = slot.dataset.accept;
+      if (data.type !== accept) {
+        // 提示不匹配
+        flashFeedback("请将对应类型的拼音组件拖到对应槽位（声母/韵母/声调）", "err");
+        return;
+      }
+      placeIntoSlot(accept, data.value);
+    }catch(e){
+      console.warn(e);
+    }
+  });
+});
+
+/* 将值放入槽位（并更新显示） */
+function placeIntoSlot(slotName, value){
+  slotState[slotName] = value;
+  renderSlots();
+}
+
+/* 渲染槽位显示（包括移除按钮） */
+function renderSlots(){
+  // initial
+  slotInitial.innerHTML = "";
+  const initVal = slotState.initial;
+  if (initVal){
+    const span = document.createElement('span'); span.textContent = initVal || "";
+    slotInitial.appendChild(span);
+    const btn = document.createElement('button'); btn.className='btn-remove'; btn.textContent='✖'; btn.title='移除';
+    btn.addEventListener('click', ()=>{ slotState.initial = null; renderSlots(); });
+    slotInitial.appendChild(btn);
+  } else {
+    slotInitial.innerHTML = '声母<br><small class="small-muted">(拖入)</small>';
+  }
+  // final
+  slotFinal.innerHTML = "";
+  const finalVal = slotState.final;
+  if (finalVal){
+    const span = document.createElement('span'); span.textContent = finalVal || "";
+    slotFinal.appendChild(span);
+    const btn = document.createElement('button'); btn.className='btn-remove'; btn.textContent='✖'; btn.title='移除';
+    btn.addEventListener('click', ()=>{ slotState.final = null; renderSlots(); });
+    slotFinal.appendChild(btn);
+  } else {
+    slotFinal.innerHTML = '韵母<br><small class="small-muted">(拖入)</small>';
+  }
+  // tone
+  slotTone.innerHTML = "";
+  const toneVal = slotState.tone;
+  if (toneVal){
+    const span = document.createElement('span'); span.textContent = toneVal || "";
+    slotTone.appendChild(span);
+    const btn = document.createElement('button'); btn.className='btn-remove'; btn.textContent='✖'; btn.title='移除';
+    btn.addEventListener('click', ()=>{ slotState.tone = null; renderSlots(); });
+    slotTone.appendChild(btn);
+  } else {
+    slotTone.innerHTML = '声调<br><small class="small-muted">(拖入)</small>';
+  }
+}
+
+/* 清空槽位 */
+function clearSlots(){
+  slotState = { initial:null, final:null, tone:null };
+  renderSlots();
+}
+
+/* 检查答案 */
+function checkAnswer(){
+  if (!current) return;
+  // Allow initial to be empty string when actual initial is "" (e.g., 'ai' syllable)
+  const userInitial = slotState.initial || "";
+  const userFinal = slotState.final || "";
+  const userTone = slotState.tone || "5"; // assume neutral if not provided
+  // Build user pinyin with tone
+  const userPinyin = applyTone(userInitial, userFinal, String(userTone));
+  const target = current.pinyin;
+  // normalize comparisons: some dataset uses 'le' (neutral) without tone mark; ensure exact match required per spec
+  if (userPinyin === target){
+    // correct
+    score += 10;
+    // level up check
+    if (score >= nextLevelThreshold){
+      level++;
+      nextLevelThreshold += 50;
+      flashFeedback(`回答正确！得分 +10。恭喜升到等级 ${level} 🎉`, "ok");
+    } else {
+      flashFeedback(`回答正确！得分 +10。正确拼音：${target}`, "ok");
+    }
+    updateUI();
+  } else {
+    // incorrect
+    flashFeedback(`回答错误。你的：${userPinyin || "(未填写)"}，正确：${target}`, "err");
+  }
+}
+
+/* 更新 UI（分数/等级等）*/
+function updateUI(){
+  scoreEl.textContent = score;
+  levelEl.textContent = level;
+}
+
+/* 显示临时反馈 */
+let feedbackTimer = null;
+function flashFeedback(text, type){
+  feedbackEl.textContent = text;
+  feedbackEl.className = "feedback " + (type === "ok" ? "ok" : "err");
+  if (feedbackTimer) clearTimeout(feedbackTimer);
+  feedbackTimer = setTimeout(()=>{ feedbackEl.className = "feedback"; }, 6000);
+}
+
+/* 播放发音（Web Speech API） */
+function playPronunciation(){
+  if (!('speechSynthesis' in window)){
+    flashFeedback("当前浏览器不支持 Web Speech API 发音。", "err");
+    return;
+  }
+  const utter = new SpeechSynthesisUtterance(current ? current.character : charTarget.textContent);
+  utter.lang = "zh-CN";
+  utter.rate = 0.9;
+  // Some browsers may interpret pitch/voice differently; keep defaults
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utter);
+}
+
+/* 绑定按钮 */
+playBtn.addEventListener('click', ()=>{
+  if (!current) return;
+  playPronunciation();
+});
+checkBtn.addEventListener('click', ()=>{ checkAnswer(); });
+nextBtn.addEventListener('click', ()=>{ nextQuestion(); });
+clearBtn.addEventListener('click', ()=>{ clearSlots(); });
+
+/* 初始化首题并渲染 */
+startNewGame();
+nextQuestion();
+
+/* 触摸设备：支持拖放不便时，添加长按提示（可点击组件自动放入槽位，见 chip click 逻辑） */
+/* 无需额外处理 */
+
+/* 额外：当用户在移动端点击"播放发音"前先交互以允许声音 */
+document.addEventListener('touchstart', ()=>{}, {passive:true});
+</script>
+</body>
+</html>
